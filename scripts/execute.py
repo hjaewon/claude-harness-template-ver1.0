@@ -178,20 +178,22 @@ class StepExecutor:
         sections = []
         claude_md = ROOT / "CLAUDE.md"
         if claude_md.exists():
-            sections.append(f"## 프로젝트 규칙 (CLAUDE.md)\n\n{claude_md.read_text()}")
+            sections.append(f"## 프로젝트 규칙 (CLAUDE.md)\n\n{claude_md.read_text(encoding='utf-8')}")
         docs_dir = ROOT / "docs"
         if docs_dir.is_dir():
             for doc in sorted(docs_dir.glob("*.md")):
-                sections.append(f"## {doc.stem}\n\n{doc.read_text()}")
+                sections.append(f"## {doc.stem}\n\n{doc.read_text(encoding='utf-8')}")
         return "\n\n---\n\n".join(sections) if sections else ""
 
     @staticmethod
     def _build_step_context(index: dict) -> str:
-        lines = [
-            f"- Step {s['step']} ({s['name']}): {s['summary']}"
-            for s in index["steps"]
-            if s["status"] == "completed" and s.get("summary")
-        ]
+        lines = []
+        for s in index["steps"]:
+            if s["status"] != "completed":
+                continue
+            text = s.get("contract") or s.get("summary")
+            if text:
+                lines.append(f"- Step {s['step']} ({s['name']}): {text}")
         if not lines:
             return ""
         return "## 이전 Step 산출물\n\n" + "\n".join(lines) + "\n\n"
@@ -217,7 +219,11 @@ class StepExecutor:
             f"3. 기존 테스트를 깨뜨리지 마라.\n"
             f"4. AC(Acceptance Criteria) 검증을 직접 실행하라.\n"
             f"5. /phases/{self._phase_dir_name}/index.json의 해당 step status를 업데이트하라:\n"
-            f"   - AC 통과 → \"completed\" + \"summary\" 필드에 이 step의 산출물을 한 줄로 요약\n"
+            f"   - AC 통과 → \"completed\". 다음 두 필드를 채워라:\n"
+            f"     · \"summary\": 사람이 보는 상세 기록 (길이 제한 없음)\n"
+            f"     · \"contract\": 다음 step LLM에 전달할 공개 계약. 1~3줄, 공개 API/생성 파일/유지할 불변식만.\n"
+            f"        예: \"engine.execute_rules(rules_dir, model)→dict 추가. eval/exec 금지 유지.\"\n"
+            f"        (\"contract\" 없으면 \"summary\"가 fallback으로 사용됨)\n"
             f"   - {self.MAX_RETRIES}회 수정 시도 후에도 실패 → \"error\" + \"error_message\" 기록\n"
             f"   - 사용자 개입이 필요한 경우 (API 키, 인증, 수동 설정 등) → \"blocked\" + \"blocked_reason\" 기록 후 즉시 중단\n"
             f"6. 모든 변경사항을 커밋하라:\n"
@@ -234,7 +240,7 @@ class StepExecutor:
             print(f"  ERROR: {step_file} not found")
             sys.exit(1)
 
-        prompt = preamble + step_file.read_text()
+        prompt = preamble + step_file.read_text(encoding="utf-8")
         result = subprocess.run(
             ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
             cwd=self._root, capture_output=True, text=True, timeout=1800,
