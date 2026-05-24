@@ -1,5 +1,10 @@
 # 프로젝트: {프로젝트명}
 
+> 매 작업 전 Claude가 자동으로 읽는 행동 지침이다. 사람이 직접 편집하지 말고,
+> "이걸 CLAUDE.md에 반영해줘"라고 Claude에게 시켜 누적시킨다.
+>
+> **이 파일을 편집할 때는 반드시 먼저 `.claude/CLAUDE-EDITING-RULES.md`를 Read한 뒤 시작하라.**
+
 ## 기술 스택
 - {프레임워크 (예: Next.js 15)}
 - {언어 (예: TypeScript strict mode)}
@@ -15,7 +20,22 @@
 - 커밋 메시지는 conventional commits 형식을 따를 것 (feat:, fix:, docs:, refactor:)
 
 ## 명령어
+
+```bash
 npm run dev      # 개발 서버
 npm run build    # 프로덕션 빌드
 npm run lint     # ESLint
-npm run test     # 테스트
+npm test         # 테스트
+```
+
+## 함정 (Claude가 자주 빠지는 곳)
+
+<!-- 형식: "X 하지 마라. 이유: Y". Claude 실수 발생 시 사용자 지시로 누적된다. -->
+
+(아직 없음)
+
+## 도메인 메모
+
+<!-- 코드만 봐선 모를 비즈니스 룰, 외부 시스템 계약, 약속된 인터페이스. -->
+
+(아직 없음)
