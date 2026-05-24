@@ -33,6 +33,7 @@
 #### D-1. `phases/index.json` (전체 현황)
 
 여러 task를 관리하는 top-level 인덱스. 이미 존재하면 `phases` 배열에 새 항목을 추가한다.
+매 1분마다, status의 현황을 업데이트 한다.
 
 ```json
 {
