@@ -18,18 +18,41 @@
 set -euo pipefail
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
+
+PYTHON_BIN=${PYTHON_BIN:-}
+if [ -z "$PYTHON_BIN" ]; then
+  if command -v python >/dev/null 2>&1; then
+    PYTHON_BIN=python
+  else
+    PYTHON_BIN=python3
+  fi
+fi
+
+COMMAND=$("$PYTHON_BIN" - "$INPUT" <<'PY'
+import json, sys
+try:
+    payload = json.loads(sys.argv[1])
+    print(payload.get("tool_input", {}).get("command", ""))
+except Exception:
+    pass
+PY
+)
+
+[ -z "$COMMAND" ] && exit 0
 
 DANGEROUS_PATTERN='rm[[:space:]]+-rf|git[[:space:]]+push[[:space:]]+--force|git[[:space:]]+reset[[:space:]]+--hard|DROP[[:space:]]+TABLE|mkfs|:\(\)\{'
 
 if echo "$COMMAND" | grep -qE "$DANGEROUS_PATTERN"; then
-  jq -n --arg cmd "$COMMAND" '{
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: ("위험 명령 차단: " + $cmd)
+  "$PYTHON_BIN" - "$COMMAND" <<'PY'
+import json, sys
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": "위험 명령 차단: " + sys.argv[1]
     }
-  }'
+}, ensure_ascii=False))
+PY
   exit 0
 fi
 

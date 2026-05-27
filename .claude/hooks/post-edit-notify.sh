@@ -20,8 +20,29 @@ set -euo pipefail
 LOG_FILE="${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/edit.log"
 INPUT=$(cat)
 
-TOOL=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
-FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_response.filePath // ""')
+PYTHON_BIN=${PYTHON_BIN:-}
+if [ -z "$PYTHON_BIN" ]; then
+  if command -v python >/dev/null 2>&1; then
+    PYTHON_BIN=python
+  else
+    PYTHON_BIN=python3
+  fi
+fi
+
+RESULT=$("$PYTHON_BIN" - "$INPUT" <<'PY'
+import json, sys
+try:
+    p = json.loads(sys.argv[1])
+    tool = p.get("tool_name") or "unknown"
+    fp = (p.get("tool_input") or {}).get("file_path") or (p.get("tool_response") or {}).get("filePath", "")
+    print(f"{tool}\t{fp}")
+except Exception:
+    print("unknown\t")
+PY
+)
+
+TOOL="${RESULT%%	*}"
+FILE="${RESULT#*	}"
 
 if [ -n "$FILE" ]; then
   printf '[%s] %s %s\n' "$(date -Iseconds)" "$TOOL" "$FILE" >> "$LOG_FILE"
