@@ -477,7 +477,8 @@ class TestInvokeClaude:
             output = executor._invoke_claude(step, preamble)
 
         cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "claude"
+        # shutil.which로 해석되면 전체 경로(예: claude.CMD)일 수 있다.
+        assert "claude" in os.path.basename(cmd[0]).lower()
         assert "-p" in cmd
         assert "--dangerously-skip-permissions" in cmd
         assert "--output-format" in cmd

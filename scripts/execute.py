@@ -3,13 +3,15 @@
 Harness Step Executor — phase 내 step을 순차 실행하고 자가 교정한다.
 
 Usage:
-    python3 scripts/execute.py <phase-dir> [--push]
+    python scripts/execute.py <phase-dir> [--push]    # Windows
+    python3 scripts/execute.py <phase-dir> [--push]   # macOS/Linux
 """
 
 import argparse
 import contextlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -108,7 +110,8 @@ class StepExecutor:
 
     def _run_git(self, *args) -> subprocess.CompletedProcess:
         cmd = ["git"] + list(args)
-        return subprocess.run(cmd, cwd=self._root, capture_output=True, text=True)
+        return subprocess.run(cmd, cwd=self._root, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace")
 
     def _checkout_branch(self):
         branch = f"feat-{self._phase_name}"
@@ -241,9 +244,13 @@ class StepExecutor:
             sys.exit(1)
 
         prompt = preamble + step_file.read_text(encoding="utf-8")
+        # Windows에서 claude는 claude.cmd 셔임이라 bare 이름으로는 CreateProcess가
+        # 찾지 못한다. shutil.which로 실제 경로(.cmd 포함)를 해석한다.
+        claude_bin = shutil.which("claude") or "claude"
         result = subprocess.run(
-            ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
-            cwd=self._root, capture_output=True, text=True, timeout=1800,
+            [claude_bin, "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
+            cwd=self._root, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=1800,
         )
 
         if result.returncode != 0:
@@ -257,7 +264,7 @@ class StepExecutor:
             "stdout": result.stdout, "stderr": result.stderr,
         }
         out_path = self._phase_dir / f"step{step_num}-output.json"
-        with open(out_path, "w") as f:
+        with open(out_path, "w", encoding="utf-8") as f:
             json.dump(output, f, indent=2, ensure_ascii=False)
 
         return output
@@ -411,6 +418,12 @@ class StepExecutor:
 
 
 def main():
+    # Windows 콘솔/리다이렉트 기본 인코딩(cp949 등)에서는 진행 표시기·상태 글리프
+    # (◐ ✓ ✗ ⏸ ↻ ⚠)가 인코딩 불가로 죽는다. stdout/stderr를 UTF-8로 맞춘다.
+    for _stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description="Harness Step Executor")
     parser.add_argument("phase_dir", help="Phase directory name (e.g. 0-mvp)")
     parser.add_argument("--push", action="store_true", help="Push branch after completion")
